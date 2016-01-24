@@ -1,0 +1,93 @@
+
+require 'rake/clean'
+require 'ffi'
+
+FILES = {}
+
+task :default => [:build, :compact]
+
+def self.file_task(filename, opts, &block)
+  name, dep = opts.is_a?(Hash) ? opts.to_a.first : [opts, nil]
+  
+  FILES[name] = filename
+  CLEAN.include filename
+  task name => filename
+  
+  if dep
+    file filename => FILES[dep], &block
+  else
+    file filename, &block
+  end
+end
+
+def cmd(string)
+  fail "Command failed: #{string}" unless system(string)
+end
+
+file_task 'libuv.tar.gz', :download_tarball do
+  version = "1.8.0"
+  release = "https://github.com/libuv/libuv/archive/v#{version}.tar.gz"
+  cmd "wget -O #{FILES[:download_tarball]} #{release}"
+end
+
+file_task 'libuv', :download => :download_tarball do
+  cmd "tar -zxf #{FILES[:download_tarball]}"
+  cmd "mv libuv-* #{FILES[:download]}"
+end
+
+file_task 'autogen.touch', :autogen => :download do
+  cmd "/usr/bin/env sh -c 'cd #{FILES[:download]} && ./autogen.sh'"
+  cmd "touch #{FILES[:autogen]}"
+end
+
+file_task 'configure.touch', :configure => :autogen do
+  cmd "/usr/bin/env sh -c 'cd #{FILES[:download]} && ./configure'"
+  cmd "touch #{FILES[:configure]}"
+end
+
+# TODO: try to get patch accepted upstream?
+file_task 'patch.touch', :patch => :configure do
+  uv_header = "#{FILES[:download]}/include/uv.h"
+  uv_source = "#{FILES[:download]}/src/uv-common.c"
+  
+  ##
+  # Patch 1 - runtime detection for the sizeof each struct type.
+  
+  types     = []
+  not_types = []
+  File.read(uv_header).each_line do |line|
+    # Record the type from each struct typedef.
+    match = /typedef struct uv_\w+_s (uv_\w+?)_t;/.match line
+    types << match[1] if match
+    
+    # Don't record the type if it already has a sizeof function.
+    match = /UV_EXTERN size_t (uv_\w+?)_sizeof\(void\);/.match line
+    not_types << match[1] if match
+  end
+  types -= not_types
+  
+  # Declare the sizeof function for each recorded type.
+  File.open uv_header, "a" do |file|
+    types.each do |type|
+      file.puts("UV_EXTERN size_t #{type}_sizeof(void);")
+    end
+  end
+  
+  # Implement the sizeof function for each recorded type.
+  File.open uv_source, "a" do |file|
+    types.each do |type|
+      file.puts("size_t #{type}_sizeof(void) { return sizeof(#{type}_t); }")
+    end
+  end
+end
+
+file_task "libuv.#{::FFI::Platform::LIBSUFFIX}", :build => :patch do
+  cmd "/usr/bin/env sh -c 'cd #{FILES[:download]} && make'"
+  cmd "cp #{FILES[:download]}/.libs/#{FILES[:build]} ."
+end
+
+task :compact => FILES[:build] do
+  FILES.each do |key, filename|
+    cmd "rm -rf #{filename}" unless key == :build
+  end
+end
