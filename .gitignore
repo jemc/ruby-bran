@@ -6,3 +6,4 @@ ext/libuv/autogen.touch
 ext/libuv/configure.touch
 ext/libuv/patch.touch
 ext/libuv/libuv.so
+tmp.*
