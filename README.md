@@ -1,6 +1,5 @@
 # Bran
 
-
 ## Integrations
 
 Bran is most useful when integrated with every part of your application that performs I/O. Because I/O is commonly abstracted away from our applications by libraries, Bran includes integrations and patches for various third-party libraries so that they can use Bran to yield control to other Fibers while waiting for I/O.
