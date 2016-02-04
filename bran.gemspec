@@ -9,6 +9,7 @@ Gem::Specification.new do |s|
   s.email        = "joe.eli.mac@gmail.com"
   
   s.files        = Dir["{lib}/**/*.rb", "bin/*", "LICENSE", "*.md"]
+  s.extensions   = ["ext/libuv/Rakefile"]
   
   s.require_path = "lib"
   s.homepage     = "https://github.com/jemc/ruby-bran"
