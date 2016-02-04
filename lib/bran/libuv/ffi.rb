@@ -1,5 +1,5 @@
 
-require 'ffi'
+require "ffi"
 
 module Bran
   module LibUV

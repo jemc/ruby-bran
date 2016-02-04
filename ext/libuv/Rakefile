@@ -1,6 +1,6 @@
 
-require 'rake/clean'
-require 'ffi'
+require "rake/clean"
+require "ffi"
 
 FILES = {}
 
@@ -24,29 +24,29 @@ def cmd(string)
   fail "Command failed: #{string}" unless system(string)
 end
 
-file_task 'libuv.tar.gz', :download_tarball do
+file_task "libuv.tar.gz", :download_tarball do
   version = "1.8.0"
   release = "https://github.com/libuv/libuv/archive/v#{version}.tar.gz"
   cmd "wget -O #{FILES[:download_tarball]} #{release}"
 end
 
-file_task 'libuv', :download => :download_tarball do
+file_task "libuv", :download => :download_tarball do
   cmd "tar -zxf #{FILES[:download_tarball]}"
   cmd "mv libuv-* #{FILES[:download]}"
 end
 
-file_task 'autogen.touch', :autogen => :download do
+file_task "autogen.touch", :autogen => :download do
   cmd "/usr/bin/env sh -c 'cd #{FILES[:download]} && ./autogen.sh'"
   cmd "touch #{FILES[:autogen]}"
 end
 
-file_task 'configure.touch', :configure => :autogen do
+file_task "configure.touch", :configure => :autogen do
   cmd "/usr/bin/env sh -c 'cd #{FILES[:download]} && ./configure'"
   cmd "touch #{FILES[:configure]}"
 end
 
 # TODO: try to get patch accepted upstream?
-file_task 'patch.touch', :patch => :configure do
+file_task "patch.touch", :patch => :configure do
   uv_header = "#{FILES[:download]}/include/uv.h"
   uv_source = "#{FILES[:download]}/src/uv-common.c"
   
