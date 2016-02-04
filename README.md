@@ -18,6 +18,17 @@ Bran::Ext.check_assumptions = true
 
 The description of each Bran integration will also be labeled "Tested with" for known good combinations of dependent gems.
 
+### IO, TCPServer
+
+Use Bran with any pure-Ruby library or application that uses plain IO (such as TCPSocket and TCPServer). Without any other Bran integrations, this requires manually running your own concurrent fibers of execution, scoped with a thread-local fiber manager. If no fiber manager is present, the methods will function as normal (without Bran). It's easier to use with another application-wide integration (like the Rainbows integration) that manages concurrent fibers for you.
+
+To activate the Bran integrations, simply load the corresponding files:
+
+```ruby
+require "bran/ext/io"
+require "bran/ext/tcp_server"
+```
+
 ### Rainbows
 
 Use Bran with [Rainbows][rainbows], a [Unicorn][unicorn]-based and [Unicorn][unicorn]-compatible webserver from the creators of [Unicorn][unicorn].
