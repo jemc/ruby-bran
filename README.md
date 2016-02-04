@@ -47,6 +47,7 @@ end
 ```
 
 Tested with:
+
 - `rainbows 5.0.0` (`unicorn 5.0.0`, `kgio 2.10.0`)
 - `rainbows 5.0.0` (`unicorn 5.0.1`, `kgio 2.10.0`)
 
