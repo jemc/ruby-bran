@@ -2,7 +2,7 @@
 Gem::Specification.new do |s|
   s.name         = "bran"
   s.version      = "0.0.1"
-  s.date         = "2016-01-21"
+  s.date         = "2016-02-03"
   s.summary      = "bran"
   s.description  = "A source of Fiber."
   s.authors      = ["Joe McIlvain"]
