@@ -30,6 +30,7 @@ module Bran
         
         @poll_read_callback  = FFI.uv_poll_cb(&method(:_poll_read_callback))
         @poll_write_callback = FFI.uv_poll_cb(&method(:_poll_write_callback))
+        @poll_rw_callback    = FFI.uv_poll_cb(&method(:_poll_rw_callback))
         
         # TODO: add more Ruby-compatible signal handlers by default?
         signal_start(:INT) { @abort_signal = :INT; stop! }
@@ -103,26 +104,32 @@ module Bran
       # Push the given handler for the given fd, adding if necessary.
       # If persistent is false, the handler will be popped after one trigger.
       def push_readable(fd, handler, persistent = true)
-        ptr = ptr()
-        fd  = Integer(fd)
+        ptr  = ptr()
+        fd   = Integer(fd)
+        poll = nil
         
-        # TODO: worry about readable vs writable mixing/overlap
         if (readables = @on_readables[fd])
           readables << [handler, persistent]
-          return
+        elsif (poll = @running_writes[fd])
+          @running_reads[fd]              = poll
+          @fds_by_read_addr[poll.address] = fd
+          @on_readables[fd]               = [[handler, persistent]]
+          
+          Util.error_check "starting the poll readable + writable entry",
+            FFI.uv_poll_start(poll, FFI::UV_READABLE | FFI::UV_WRITABLE, @poll_rw_callback)
+        else
+          poll = @available_polls.pop || FFI.uv_poll_alloc
+          @running_reads[fd]              = poll
+          @fds_by_read_addr[poll.address] = fd
+          @on_readables[fd]               = [[handler, persistent]]
+          
+          # TODO: investigate if need not init existing available_polls.
+          Util.error_check "creating the poll readable entry",
+            FFI.uv_poll_init(ptr, poll, fd)
+          
+          Util.error_check "starting the poll readable entry",
+            FFI.uv_poll_start(poll, FFI::UV_READABLE, @poll_read_callback)
         end
-        
-        poll = @available_polls.pop || FFI.uv_poll_alloc
-        @running_reads[fd]              = poll
-        @fds_by_read_addr[poll.address] = fd
-        @on_readables[fd]               = [[handler, persistent]]
-        
-        # TODO: investigate if need not init existing available_polls
-        Util.error_check "creating the poll readable entry",
-          FFI.uv_poll_init(ptr, poll, fd)
-        
-        Util.error_check "starting the poll readable entry",
-          FFI.uv_poll_start(poll, FFI::UV_READABLE, @poll_read_callback)
         
         fd
       end
@@ -130,26 +137,32 @@ module Bran
       # Push the given handler for the given fd, adding if necessary.
       # If persistent is false, the handler will be popped after one trigger.
       def push_writable(fd, handler, persistent = true)
-        ptr = ptr()
-        fd  = Integer(fd)
+        ptr  = ptr()
+        fd   = Integer(fd)
+        poll = nil
         
-        # TODO: worry about writable vs writable mixing/overlap
         if (writables = @on_writables[fd])
           writables << [handler, persistent]
-          return
+        elsif (poll = @running_reads[fd])
+          @running_writes[fd]              = poll
+          @fds_by_write_addr[poll.address] = fd
+          @on_writables[fd]                = [[handler, persistent]]
+          
+          Util.error_check "starting the poll readable + writable entry",
+            FFI.uv_poll_start(poll, FFI::UV_READABLE | FFI::UV_WRITABLE, @poll_rw_callback)
+        else
+          poll = @available_polls.pop || FFI.uv_poll_alloc
+          @running_writes[fd]              = poll
+          @fds_by_write_addr[poll.address] = fd
+          @on_writables[fd]                = [[handler, persistent]]
+          
+          # TODO: investigate if need not init existing available_polls.
+          Util.error_check "creating the poll writeable entry",
+            FFI.uv_poll_init(ptr, poll, fd)
+          
+          Util.error_check "starting the poll writeable entry",
+            FFI.uv_poll_start(poll, FFI::UV_WRITABLE, @poll_write_callback)
         end
-        
-        poll = @available_polls.pop || FFI.uv_poll_alloc
-        @running_writes[fd]              = poll
-        @fds_by_write_addr[poll.address] = fd
-        @on_writables[fd]                = [[handler, persistent]]
-        
-        # TODO: investigate if need not init existing available_polls
-        Util.error_check "creating the poll writable entry",
-          FFI.uv_poll_init(ptr, poll, fd)
-        
-        Util.error_check "starting the poll writable entry",
-          FFI.uv_poll_start(poll, FFI::UV_WRITABLE, @poll_write_callback)
         
         fd
       end
@@ -160,7 +173,7 @@ module Bran
         
         readables = @on_readables[fd]
         return unless readables
-          
+        
         readables.pop
         return unless readables.empty?
         
@@ -170,6 +183,13 @@ module Bran
         
         Util.error_check "stopping the poll readable entry",
           FFI.uv_poll_stop(poll)
+        
+        if poll == @running_writes[fd]
+          Util.error_check "restarting the poll writable entry",
+            FFI.uv_poll_start(poll, FFI::UV_WRITABLE, @poll_write_callback)
+          
+          return
+        end
         
         @available_polls << poll
         
@@ -192,6 +212,13 @@ module Bran
         
         Util.error_check "stopping the poll writable entry",
           FFI.uv_poll_stop(poll)
+        
+        if poll == @running_reads[fd]
+          Util.error_check "restarting the poll readable entry",
+            FFI.uv_poll_start(poll, FFI::UV_READABLE, @poll_read_callback)
+          
+          return
+        end
         
         @available_polls << poll
         
@@ -335,6 +362,12 @@ module Bran
           
           invoke_handler(handler, rc)
         end
+      end
+      
+      # Callback method called directly from FFI when an event is readable or writable.
+      def _poll_rw_callback(poll, rc, events)
+        _poll_read_callback(poll, rc, events)  if events & FFI::UV_READABLE != 0
+        _poll_write_callback(poll, rc, events) if events & FFI::UV_WRITABLE != 0
       end
       
       # Invoke the given handler, possibly converting the given rc to an error.

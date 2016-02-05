@@ -82,6 +82,42 @@ describe "bran/ext/io + bran/ext/tcp_server" do
       end
     end
     
+    it "can select reading from reading or writing" do
+      reader, writer = IO.pipe
+      writer_wrote   = false
+      
+      task do
+        r_res, w_res, e_res = IO.select([reader], [reader])
+        
+        writer_wrote.should == true
+        
+        r_res.should == [reader]
+        w_res.should == []
+        e_res.should == []
+        
+        fm.stop! if fm
+      end
+      
+      task do
+        writer_wrote = true
+        writer.write("Hello!")
+      end
+    end
+    
+    it "can select writing from reading or writing" do
+      reader, writer = IO.pipe
+      
+      task do
+        r_res, w_res, e_res = IO.select([writer], [writer])
+        
+        r_res.should == []
+        w_res.should == [writer]
+        e_res.should == []
+        
+        fm.stop! if fm
+      end
+    end
+    
     it "can time out" do
       reader, writer = IO.pipe
       
