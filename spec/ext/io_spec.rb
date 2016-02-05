@@ -7,10 +7,9 @@ describe "bran/ext/io + bran/ext/tcp_server" do
   it("registers in ::Bran::Ext") { ::Bran::Ext[:io].should be }
   it("registers in ::Bran::Ext") { ::Bran::Ext[:tcp_server].should be }
   
-  let(:fm) { Bran::FiberManager.new }
-  
   contexts = Proc.new do
     context "with fibers (and fiber manager)" do
+      let(:fm) { Bran::FiberManager.new }
       let(:tasks) { [] }
       
       def task
@@ -29,6 +28,7 @@ describe "bran/ext/io + bran/ext/tcp_server" do
     end
     
     context "with threads (no fiber manager)" do
+      let(:fm) { nil }
       let(:tasks) { [] }
       
       def task
@@ -59,7 +59,7 @@ describe "bran/ext/io + bran/ext/tcp_server" do
         w_res.should == []
         e_res.should == []
         
-        fm.stop!
+        fm.stop! if fm
       end
       
       task do
@@ -78,7 +78,7 @@ describe "bran/ext/io + bran/ext/tcp_server" do
         w_res.should == [writer]
         e_res.should == []
         
-        fm.stop!
+        fm.stop! if fm
       end
     end
     
@@ -92,7 +92,7 @@ describe "bran/ext/io + bran/ext/tcp_server" do
         (((Time.now - start) * 10).round / 10.0).should be >= 0.1
         res.should == nil
         
-        fm.stop!
+        fm.stop! if fm
       end
     end
   end
@@ -117,7 +117,7 @@ describe "bran/ext/io + bran/ext/tcp_server" do
           http.get("/").code.should eq "200"
         end
         
-        fm.stop!
+        fm.stop! if fm
       end
     end
   end
