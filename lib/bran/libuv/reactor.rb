@@ -123,7 +123,6 @@ module Bran
           @fds_by_read_addr[poll.address] = fd
           @on_readables[fd]               = [[handler, persistent]]
           
-          # TODO: investigate if need not init existing available_polls.
           Util.error_check "creating the poll readable entry",
             FFI.uv_poll_init(ptr, poll, fd)
           
@@ -156,7 +155,6 @@ module Bran
           @fds_by_write_addr[poll.address] = fd
           @on_writables[fd]                = [[handler, persistent]]
           
-          # TODO: investigate if need not init existing available_polls.
           Util.error_check "creating the poll writeable entry",
             FFI.uv_poll_init(ptr, poll, fd)
           
