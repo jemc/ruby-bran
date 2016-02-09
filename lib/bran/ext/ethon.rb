@@ -8,3 +8,4 @@ require "ethon"
 
 require_relative "ethon/curl"
 require_relative "ethon/multi"
+require_relative "ethon/easy"
