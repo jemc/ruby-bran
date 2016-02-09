@@ -20,7 +20,9 @@ The description of each Bran integration will also be labeled "Tested with" for 
 
 ### IO, TCPServer
 
-Use Bran with any pure-Ruby library or application that uses plain IO (such as TCPSocket and TCPServer). Without any other Bran integrations, this requires manually running your own concurrent fibers of execution, scoped with a thread-local fiber manager. If no fiber manager is present, the methods will function as normal (without Bran). It's easier to use with another application-wide integration (like the Rainbows integration) that manages concurrent fibers for you.
+Use Bran with any pure-Ruby library or application that uses plain IO (such as TCPSocket and TCPServer).
+
+Without any other Bran integrations, this requires manually running your own concurrent fibers of execution, scoped with a thread-local fiber manager. If no fiber manager is present, the methods will function as normal (without Bran). It's easier to use with another application-wide integration (like the Rainbows integration) that manages concurrent fibers for you.
 
 To activate the Bran integrations, simply load the corresponding files:
 
@@ -28,6 +30,22 @@ To activate the Bran integrations, simply load the corresponding files:
 require "bran/ext/io"
 require "bran/ext/tcp_server"
 ```
+
+### Ethon (Typhoeus)
+
+Use Bran with any library or application that uses [Ethon][ethon] to perform HTTP requests (for example, [Typhoeus][typhoeus]).
+
+Without any other Bran integrations, this requires manually running your own concurrent fibers of execution, scoped with a thread-local fiber manager. If no fiber manager is present, the methods will function as normal (without Bran). It's easier to use with another application-wide integration (like the Rainbows integration) that manages concurrent fibers for you.
+
+To activate the Bran integration, simply load the corresponding file:
+
+```ruby
+require "bran/ext/ethon"
+```
+
+Tested with:
+
+- `ethon 0.8.1`
 
 ### Rainbows
 
@@ -51,5 +69,7 @@ Tested with:
 - `rainbows 5.0.0` (`unicorn 5.0.0`, `kgio 2.10.0`)
 - `rainbows 5.0.0` (`unicorn 5.0.1`, `kgio 2.10.0`)
 
+[ethon]:    https://github.com/typhoeus/ethon
+[typhoeus]: https://github.com/typhoeus/typhoeus
 [rainbows]: http://rainbows.bogomips.org/
 [unicorn]:  http://unicorn.bogomips.org/
