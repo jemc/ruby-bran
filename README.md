@@ -20,7 +20,7 @@ The description of each Bran integration will also be labeled "Tested with" for 
 
 ### IO, TCPServer
 
-Use Bran with any pure-Ruby library or application that uses plain IO (such as TCPSocket and TCPServer).
+Use Bran with any pure-Ruby library or application that uses plain IO (such as TCPSocket and TCPServer). All blocking `read` operations on IO, `IO.select`, and `TCPServer#accept` will be patched to yield their fiber instead of blocking.
 
 Without any other Bran integrations, this requires manually running your own concurrent fibers of execution, scoped with a thread-local fiber manager. If no fiber manager is present, the methods will function as normal (without Bran). It's easier to use with another application-wide integration (like the Rainbows integration) that manages concurrent fibers for you.
 
@@ -33,7 +33,7 @@ require "bran/ext/tcp_server"
 
 ### Ethon (Typhoeus)
 
-Use Bran with any library or application that uses [Ethon][ethon] to perform HTTP requests (for example, [Typhoeus][typhoeus]).
+Use Bran with any library or application that uses [Ethon][ethon] to perform HTTP requests (for example, [Typhoeus][typhoeus]). Both `Ethon::Easy#perform` and `Ethon::Multi#perform` will be patched to yield their fiber instead of blocking while waiting for the HTTP response.
 
 Without any other Bran integrations, this requires manually running your own concurrent fibers of execution, scoped with a thread-local fiber manager. If no fiber manager is present, the methods will function as normal (without Bran). It's easier to use with another application-wide integration (like the Rainbows integration) that manages concurrent fibers for you.
 
