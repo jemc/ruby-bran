@@ -39,5 +39,9 @@ module Bran
       ::Fiber.yield
     end
     
+    def resume_soon(fiber)
+      @loop.timer_oneshot_wake(0, fiber)
+    end
+    
   end
 end
