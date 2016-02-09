@@ -3,6 +3,8 @@ require_relative "../spec_helper"
 require "bran/ext/io"
 require "bran/ext/tcp_server"
 
+require "net/http"
+
 describe "bran/ext/io + bran/ext/tcp_server" do
   it("registers in ::Bran::Ext") { ::Bran::Ext[:io].should be }
   it("registers in ::Bran::Ext") { ::Bran::Ext[:tcp_server].should be }
