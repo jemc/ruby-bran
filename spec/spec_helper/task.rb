@@ -6,9 +6,22 @@ module SpecHelper
       context "with fibers (and fiber manager)" do
         let(:fm) { Bran::FiberManager.new }
         let(:tasks) { [] }
+        let(:after_tasks) { [] }
         
         def task
-          tasks << Fiber.new { yield }
+          tasks << Fiber.new do
+            yield
+            tasks.delete(Fiber.current)
+            
+            if tasks.empty?
+              after_tasks.each(&:call)
+              fm.stop!
+            end
+          end
+        end
+        
+        def after_task(&block)
+          after_tasks << block
         end
         
         around do |example|
@@ -24,14 +37,20 @@ module SpecHelper
       context "with threads (no fiber manager)" do
         let(:fm) { nil }
         let(:tasks) { [] }
+        let(:after_tasks) { [] }
         
         def task
           tasks << Thread.new { yield }
         end
         
+        def after_task(&block)
+          after_tasks << block
+        end
+        
         around do |example|
           example.run
           tasks.each(&:join)
+          after_tasks.each(&:call)
         end
         
         instance_eval(&block)

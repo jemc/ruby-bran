@@ -43,7 +43,6 @@ describe "bran/ext/ethon" do
           end
           
           server.close
-          fm.stop! if fm
         end
       end
       
@@ -63,8 +62,6 @@ describe "bran/ext/ethon" do
             easy.return_code.should eq :ok
             easy.mirror.options[:response_code].should eq 200
           end
-          
-          fm.stop! if fm
         end
       end
       
@@ -88,7 +85,6 @@ describe "bran/ext/ethon" do
           end
           
           server.close
-          fm.stop! if fm
         end
       end
     end

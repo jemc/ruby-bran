@@ -25,8 +25,6 @@ describe "bran/ext/io + bran/ext/tcp_server" do
           r_res.should == [reader]
           w_res.should == []
           e_res.should == []
-          
-          fm.stop! if fm
         end
         
         task do
@@ -44,8 +42,6 @@ describe "bran/ext/io + bran/ext/tcp_server" do
           r_res.should == []
           w_res.should == [writer]
           e_res.should == []
-          
-          fm.stop! if fm
         end
       end
       
@@ -61,8 +57,6 @@ describe "bran/ext/io + bran/ext/tcp_server" do
           r_res.should == [reader]
           w_res.should == []
           e_res.should == []
-          
-          fm.stop! if fm
         end
         
         task do
@@ -80,8 +74,6 @@ describe "bran/ext/io + bran/ext/tcp_server" do
           r_res.should == []
           w_res.should == [writer]
           e_res.should == []
-          
-          fm.stop! if fm
         end
       end
       
@@ -94,8 +86,6 @@ describe "bran/ext/io + bran/ext/tcp_server" do
           
           (((Time.now - start) * 10).round / 10.0).should be >= 0.1
           res.should == nil
-          
-          fm.stop! if fm
         end
       end
     end
@@ -118,8 +108,6 @@ describe "bran/ext/io + bran/ext/tcp_server" do
         Net::HTTP.start "localhost", port do |http|
           http.get("/").code.should eq "200"
         end
-        
-        fm.stop! if fm
       end
     end
   end
