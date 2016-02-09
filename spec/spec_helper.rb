@@ -9,6 +9,8 @@ require "pry"
 
 Thread.abort_on_exception = true
 
+require_relative "spec_helper/task"
+
 RSpec.configure do |c|
   # Enable "should" syntax
   c.expect_with(:rspec) { |c| c.syntax = [:should, :expect] }
@@ -25,4 +27,7 @@ RSpec.configure do |c|
   # Set output formatter and enable color
   c.formatter = "Fivemat"
   c.color     = true
+  
+  # Extend with module helpers
+  c.extend SpecHelper::Task
 end
