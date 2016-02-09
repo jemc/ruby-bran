@@ -339,7 +339,9 @@ module Bran
       # Callback method called directly from FFI when an event is readable.
       def _poll_read_callback(poll, rc, events)
         rescue_abort do
-          fd        = @fds_by_read_addr.fetch(poll.address)
+          fd = @fds_by_read_addr[poll.address]
+          return unless fd
+          
           readables = @on_readables.fetch(fd)
           
           handler, persistent = readables.last
@@ -352,7 +354,9 @@ module Bran
       # Callback method called directly from FFI when an event is writable.
       def _poll_write_callback(poll, rc, events)
         rescue_abort do
-          fd        = @fds_by_write_addr.fetch(poll.address)
+          fd = @fds_by_write_addr[poll.address]
+          return unless fd
+          
           writables = @on_writables.fetch(fd)
           
           handler, persistent = writables.last
