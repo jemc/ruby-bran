@@ -45,7 +45,17 @@ module Bran
             @items_by_ident[ident]
           end
           
-          def invoke_by_addr(addr, rc)
+          def invoke_by_ident(ident, rc = 0)
+            stack = @stacks_by_ident[ident]
+            return unless ident
+            
+            handler, persistent = stack.last
+            pop ident unless persistent
+            
+            invoke_handler(handler, rc)
+          end
+          
+          def invoke_by_addr(addr, rc = 0)
             ident = @idents_by_addr[addr]
             return unless ident
             
@@ -57,7 +67,7 @@ module Bran
             invoke_handler(handler, rc)
           end
           
-          def invoke_handler(handler, rc)
+          def invoke_handler(handler, rc = 0)
             case handler
             when ::Fiber
               if rc == 0
@@ -198,6 +208,35 @@ module Bran
           def concrete_sister_unshare_item(ident, item)
             Util.error_check "restarting the poll writable item",
               FFI.uv_poll_start(item, FFI::UV_WRITABLE, @callback)
+          end
+        end
+        
+        class Signal < Abstract
+          def initialize(*)
+            super
+            @item_pool = []
+            @callback  = FFI.uv_signal_cb(&@reactor.method(:_signal_callback))
+          end
+          
+          def concrete_alloc_item
+            @item_pool.pop || FFI.uv_signal_alloc
+          end
+          
+          def concrete_release_item(item)
+            @item_pool << item
+          end
+          
+          def concrete_start_item(ident, item)
+            Util.error_check "creating the signal handler item",
+              FFI.uv_signal_init(@reactor.ptr, item)
+            
+            Util.error_check "starting the signal handler item",
+              FFI.uv_signal_start(item, @callback, ident)
+          end
+          
+          def concrete_stop_item(ident, item)
+            Util.error_check "stopping the signal handler item",
+              FFI.uv_signal_stop(item)
           end
         end
         

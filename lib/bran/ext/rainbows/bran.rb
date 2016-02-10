@@ -40,10 +40,10 @@ module Rainbows
       stopping = false
       
       manager.run! do
-        manager.loop.signal_start(:INT)  { exit!(0) }
-        manager.loop.signal_start(:TERM) { exit!(0) }
-        manager.loop.signal_start(:USR1) { reopen_worker_logs(worker.nr) } # TODO: test
-        manager.loop.signal_start(:QUIT) { stopping = true } # TODO: test softness
+        manager.loop.push_signalable :INT,  Proc.new { exit!(0) }
+        manager.loop.push_signalable :TERM, Proc.new { exit!(0) }
+        manager.loop.push_signalable :USR1, Proc.new { reopen_worker_logs(worker.nr) } # TODO: test
+        manager.loop.push_signalable :QUIT, Proc.new { stopping = true } # TODO: test softness
         
         readers.each do |reader|
           next unless reader.is_a?(::Kgio::TCPServer) # TODO: other readers?

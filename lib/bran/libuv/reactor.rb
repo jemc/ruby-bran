@@ -20,6 +20,8 @@ module Bran
         @write_polls = Collections::Write.new(self)
         @write_polls.bond_with @read_polls
         
+        @signal_polls = Collections::Signal.new(self)
+        
         @available_signals   = []
         @running_signals     = {}
         
@@ -27,7 +29,7 @@ module Bran
         @running_timers      = {}
         
         # TODO: add more Ruby-compatible signal handlers by default?
-        signal_start(:INT) { @abort_signal = :INT; stop! }
+        push_signalable :INT, Proc.new { @abort_signal = :INT; stop! }
       end
       
       # Free the native resources associated with this object. This will
@@ -103,6 +105,14 @@ module Bran
         @write_polls.push(Integer(fd), handler, persistent)
       end
       
+      # Push the given handler for the given signo, adding if necessary.
+      # If persistent is false, the handler will be popped after one trigger.
+      def push_signalable(signo, handler, persistent = true)
+        signo = Signal.list.fetch(signo.to_s) unless signo.is_a?(Integer)
+        
+        @signal_polls.push(signo, handler, persistent)
+      end
+      
       # Remove the next readable handler for the given fd.
       def pop_readable(fd)
         @read_polls.pop(Integer(fd))
@@ -113,44 +123,11 @@ module Bran
         @write_polls.pop(Integer(fd))
       end
       
-      # Start handling the given signal, running the given block when it occurs.
-      def signal_start(signo, &block)
-        ptr   = ptr()
+      # Remove the next writable handler for the given fd.
+      def pop_signalable(signo)
         signo = Signal.list.fetch(signo.to_s) unless signo.is_a?(Integer)
         
-        signal_stop(signo) if @running_signals.has_key?(signo)
-        
-        callback = FFI.uv_signal_cb do |_, _|
-          rescue_abort do
-            block.call self, signo
-          end
-        end
-        
-        signal = @available_signals.pop || FFI.uv_signal_alloc
-        @running_signals[signo] = [signal, callback]
-        
-        # TODO: investigate if need not init existing available_signals
-        Util.error_check "creating the signal item",
-          FFI.uv_signal_init(ptr, signal)
-        
-        Util.error_check "starting the signal item",
-          FFI.uv_signal_start(signal, callback, signo)
-      end
-      
-      # Stop handling the given signal.
-      def signal_stop(signo)
-        signo = Signal.list.fetch(signo.to_s) unless signo.is_a?(Integer)
-        
-        signal, callback = @running_signals.delete(signo)
-        
-        return unless signal
-        
-        Util.error_check "stopping the signal item",
-          FFI.uv_signal_stop(signal)
-        
-        @available_signals << signal
-        
-        nil
+        @signal_polls.pop(signo)
       end
       
       # Start a timer to run the given block after the given timeout.
@@ -250,6 +227,13 @@ module Bran
           if 0 != (events & FFI::UV_WRITABLE)
             @write_polls.invoke_by_addr(poll.address, rc)
           end
+        end
+      end
+      
+      # Callback method called directly from FFI when an event is signalled.
+      def _signal_callback(handle, signo)
+        rescue_abort do
+          @signal_polls.invoke_by_ident(signo)
         end
       end
       
