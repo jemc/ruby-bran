@@ -1,4 +1,6 @@
 
+require_relative "reactor/collections"
+
 module Bran
   module LibUV
     class Reactor
@@ -14,23 +16,15 @@ module Bran
         @finalizer = self.class.create_finalizer_for(@ptr)
         ObjectSpace.define_finalizer(self, @finalizer)
         
-        @available_polls     = []
-        @running_reads       = {}
-        @running_writes      = {}
-        @fds_by_read_addr    = {}
-        @fds_by_write_addr   = {}
-        @on_readables        = {}
-        @on_writables        = {}
+        @read_polls  = Collections::Read.new(self)
+        @write_polls = Collections::Write.new(self)
+        @write_polls.bond_with @read_polls
         
         @available_signals   = []
         @running_signals     = {}
         
         @available_timers    = []
         @running_timers      = {}
-        
-        @poll_read_callback  = FFI.uv_poll_cb(&method(:_poll_read_callback))
-        @poll_write_callback = FFI.uv_poll_cb(&method(:_poll_write_callback))
-        @poll_rw_callback    = FFI.uv_poll_cb(&method(:_poll_rw_callback))
         
         # TODO: add more Ruby-compatible signal handlers by default?
         signal_start(:INT) { @abort_signal = :INT; stop! }
@@ -45,13 +39,9 @@ module Bran
         end
         @ptr = @finalizer = nil
         
-        @available_polls      = \
-          @running_reads      = @running_writes      = \
-          @fds_by_read_addr   = @fds_by_write_addr   = \
-          @on_readables       = @on_writables        = \
-          @available_signals  = @running_signals     = \
-          @available_timers   = @running_timers      = \
-          @poll_read_callback = @poll_write_callback = nil
+        @read_polls        = @write_polls     = \
+        @available_signals = @running_signals = \
+        @available_timers  = @running_timers  = nil
         
         self
       end
@@ -104,123 +94,23 @@ module Bran
       # Push the given handler for the given fd, adding if necessary.
       # If persistent is false, the handler will be popped after one trigger.
       def push_readable(fd, handler, persistent = true)
-        ptr  = ptr()
-        fd   = Integer(fd)
-        poll = nil
-        
-        if (readables = @on_readables[fd])
-          readables << [handler, persistent]
-        elsif (poll = @running_writes[fd])
-          @running_reads[fd]              = poll
-          @fds_by_read_addr[poll.address] = fd
-          @on_readables[fd]               = [[handler, persistent]]
-          
-          Util.error_check "starting the poll readable + writable entry",
-            FFI.uv_poll_start(poll, FFI::UV_READABLE | FFI::UV_WRITABLE, @poll_rw_callback)
-        else
-          poll = @available_polls.pop || FFI.uv_poll_alloc
-          @running_reads[fd]              = poll
-          @fds_by_read_addr[poll.address] = fd
-          @on_readables[fd]               = [[handler, persistent]]
-          
-          Util.error_check "creating the poll readable entry",
-            FFI.uv_poll_init(ptr, poll, fd)
-          
-          Util.error_check "starting the poll readable entry",
-            FFI.uv_poll_start(poll, FFI::UV_READABLE, @poll_read_callback)
-        end
-        
-        fd
+        @read_polls.push(Integer(fd), handler, persistent)
       end
       
       # Push the given handler for the given fd, adding if necessary.
       # If persistent is false, the handler will be popped after one trigger.
       def push_writable(fd, handler, persistent = true)
-        ptr  = ptr()
-        fd   = Integer(fd)
-        poll = nil
-        
-        if (writables = @on_writables[fd])
-          writables << [handler, persistent]
-        elsif (poll = @running_reads[fd])
-          @running_writes[fd]              = poll
-          @fds_by_write_addr[poll.address] = fd
-          @on_writables[fd]                = [[handler, persistent]]
-          
-          Util.error_check "starting the poll readable + writable entry",
-            FFI.uv_poll_start(poll, FFI::UV_READABLE | FFI::UV_WRITABLE, @poll_rw_callback)
-        else
-          poll = @available_polls.pop || FFI.uv_poll_alloc
-          @running_writes[fd]              = poll
-          @fds_by_write_addr[poll.address] = fd
-          @on_writables[fd]                = [[handler, persistent]]
-          
-          Util.error_check "creating the poll writeable entry",
-            FFI.uv_poll_init(ptr, poll, fd)
-          
-          Util.error_check "starting the poll writeable entry",
-            FFI.uv_poll_start(poll, FFI::UV_WRITABLE, @poll_write_callback)
-        end
-        
-        fd
+        @write_polls.push(Integer(fd), handler, persistent)
       end
       
       # Remove the next readable handler for the given fd.
       def pop_readable(fd)
-        fd = Integer(fd)
-        
-        readables = @on_readables[fd]
-        return unless readables
-        
-        readables.pop
-        return unless readables.empty?
-        
-        @on_readables.delete(fd)
-        poll = @running_reads.delete(fd)
-        @fds_by_read_addr.delete(poll.address)
-        
-        Util.error_check "stopping the poll readable entry",
-          FFI.uv_poll_stop(poll)
-        
-        if poll == @running_writes[fd]
-          Util.error_check "restarting the poll writable entry",
-            FFI.uv_poll_start(poll, FFI::UV_WRITABLE, @poll_write_callback)
-          
-          return
-        end
-        
-        @available_polls << poll
-        
-        nil
+        @read_polls.pop(Integer(fd))
       end
       
       # Remove the next writable handler for the given fd.
       def pop_writable(fd)
-        fd = Integer(fd)
-        
-        writables = @on_writables[fd]
-        return unless writables
-          
-        writables.pop
-        return unless writables.empty?
-        
-        @on_writables.delete(fd)
-        poll = @running_writes.delete(fd)
-        @fds_by_write_addr.delete(poll.address)
-        
-        Util.error_check "stopping the poll writable entry",
-          FFI.uv_poll_stop(poll)
-        
-        if poll == @running_reads[fd]
-          Util.error_check "restarting the poll readable entry",
-            FFI.uv_poll_start(poll, FFI::UV_READABLE, @poll_read_callback)
-          
-          return
-        end
-        
-        @available_polls << poll
-        
-        nil
+        @write_polls.pop(Integer(fd))
       end
       
       # Start handling the given signal, running the given block when it occurs.
@@ -337,56 +227,28 @@ module Bran
     private
       
       # Callback method called directly from FFI when an event is readable.
-      def _poll_read_callback(poll, rc, events)
+      def _read_callback(poll, rc, events)
         rescue_abort do
-          fd = @fds_by_read_addr[poll.address]
-          return unless fd
-          
-          readables = @on_readables.fetch(fd)
-          
-          handler, persistent = readables.last
-          pop_readable(fd) unless persistent
-          
-          invoke_handler(handler, rc)
+          @read_polls.invoke_by_addr(poll.address, rc)
         end
       end
       
       # Callback method called directly from FFI when an event is writable.
-      def _poll_write_callback(poll, rc, events)
+      def _write_callback(poll, rc, events)
         rescue_abort do
-          fd = @fds_by_write_addr[poll.address]
-          return unless fd
-          
-          writables = @on_writables.fetch(fd)
-          
-          handler, persistent = writables.last
-          pop_writable(fd) unless persistent
-          
-          invoke_handler(handler, rc)
+          @write_polls.invoke_by_addr(poll.address, rc)
         end
       end
       
       # Callback method called directly from FFI when an event is readable or writable.
-      def _poll_rw_callback(poll, rc, events)
-        _poll_read_callback(poll, rc, events)  if events & FFI::UV_READABLE != 0
-        _poll_write_callback(poll, rc, events) if events & FFI::UV_WRITABLE != 0
-      end
-      
-      # Invoke the given handler, possibly converting the given rc to an error.
-      def invoke_handler(handler, rc)
-        case handler
-        when ::Fiber
-          if rc == 0
-            handler.resume nil
-          else
-            handler.resume Util.error_create("running the libuv loop", rc)
+      def _rw_callback(poll, rc, events)
+        rescue_abort do
+          if 0 != (events & FFI::UV_READABLE)
+            @read_polls.invoke_by_addr(poll.address, rc)
           end
-        when ::Proc
-          if rc == 0
-            handler.call nil
-          else
-            error = Util.error_create("running the libuv loop", rc)
-            handler.call error
+          
+          if 0 != (events & FFI::UV_WRITABLE)
+            @write_polls.invoke_by_addr(poll.address, rc)
           end
         end
       end
