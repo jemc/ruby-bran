@@ -75,7 +75,7 @@ describe "bran/ext/rainbows" do
     end
     
     context "with several workers and several fibers" do
-      def env; "WORKERS=1 FIBERS=4" end
+      def env; "WORKERS=4 FIBERS=4" end
       instance_eval &shared
     end
     
