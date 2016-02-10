@@ -51,8 +51,14 @@ module Rainbows
           worker_connections.times.map do |i|
             ::Fiber.new do
               until stopping # TODO: rescue and report errors here
-                manager.wait_for_readable!(reader)
-                process_client.call(reader.kgio_accept)
+                # Try to accept a client, then if none, wait for one to appear.
+                # This may happen more than once when there all multiple
+                # workers all contending for clients on the same server socket.
+                until (client = reader.kgio_tryaccept)
+                  manager.wait_for_readable!(reader)
+                end
+                
+                process_client.call(client)
               end
             end.resume
           end
