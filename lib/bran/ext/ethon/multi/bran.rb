@@ -31,8 +31,12 @@ module Ethon
         @fm    = fm
         @multi = multi
         
-        @multi.socketfunction = method(:_socketfunction_callback).to_proc
-        @multi.timerfunction  = method(:_timerfunction_callback).to_proc
+        # We must hold a reference to these Procs, because the multi won't.
+        # This prevents the Procs from being GC'd while C holds the callbacks.
+        @socketfunction = method(:_socketfunction_callback).to_proc
+        @timerfunction  = method(:_timerfunction_callback).to_proc
+        @multi.socketfunction = @socketfunction
+        @multi.timerfunction  = @timerfunction
       end
       
       def perform
