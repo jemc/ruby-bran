@@ -31,11 +31,6 @@ module Rainbows
     def worker_loop(worker)
       readers = init_worker_process(worker)
       
-      # We have to skip the implementation from Rainbows::Base,
-      # and use the implementation from Unicorn::HttpServer directly.
-      process_client = ::Unicorn::HttpServer.instance_method(:process_client)
-      process_client = process_client.bind(self)
-      
       manager  = ::Bran::FiberManager.new
       stopping = false
       
@@ -58,7 +53,7 @@ module Rainbows
                   manager.wait_for_readable!(reader)
                 end
                 
-                process_client.call(client)
+                process_client client
               end
             end.resume
           end

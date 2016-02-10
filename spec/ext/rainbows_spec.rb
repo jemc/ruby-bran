@@ -54,10 +54,13 @@ describe "bran/ext/rainbows" do
         8.times.map do |i|
           Thread.new do
             Net::HTTP.start "localhost", @http_port do |http|
-              res = http.get("/")
+              req = Net::HTTP::Get.new("/")
+              req["x-req-id"] = "#{object_id}-#{i}"
+              res = http.request(req)
               
               res.code.should eq "200"
               res.read_body.should eq "Rainbows Bran"
+              res["x-req-id"].should eq req["x-req-id"]
             end
           end
         end.each(&:join)
