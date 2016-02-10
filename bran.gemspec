@@ -1,8 +1,8 @@
 
 Gem::Specification.new do |s|
   s.name         = "bran"
-  s.version      = "0.0.2"
-  s.date         = "2016-02-09"
+  s.version      = "0.0.3"
+  s.date         = "2016-02-10"
   s.summary      = "bran"
   s.description  = "A source of Fiber."
   s.authors      = ["Joe McIlvain"]
