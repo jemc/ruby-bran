@@ -13,11 +13,11 @@ module Bran
             @stacks_by_ident = {}
           end
           
-          def push(ident, handler, persistent)
+          def push(ident, handler, persistent, *extra_args)
             if (stack = @stacks_by_ident[ident])
               stack << [handler, persistent]
             else
-              item = make_item(ident)
+              item = make_item(ident, extra_args)
               
               @items_by_ident[ident]        = item
               @idents_by_addr[item.address] = ident
@@ -85,9 +85,9 @@ module Bran
             end
           end
           
-          def make_item(ident)
+          def make_item(ident, extra_args)
             item = concrete_alloc_item
-            concrete_start_item(ident, item)
+            concrete_start_item(ident, item, *extra_args)
             
             item
           end
@@ -112,7 +112,7 @@ module Bran
             @sister.item_pool = @item_pool
           end
           
-          def make_item(ident)
+          def make_item(ident, extra_args)
             item = @sister.item_by_ident(ident)
             return super unless item
             
@@ -227,6 +227,7 @@ module Bran
           end
           
           def concrete_start_item(ident, item)
+            # TODO: need not init existing signal item?
             Util.error_check "creating the signal handler item",
               FFI.uv_signal_init(@reactor.ptr, item)
             
@@ -237,6 +238,38 @@ module Bran
           def concrete_stop_item(ident, item)
             Util.error_check "stopping the signal handler item",
               FFI.uv_signal_stop(item)
+          end
+        end
+        
+        class Timer < Abstract
+          def initialize(*)
+            super
+            @item_pool = []
+            @callback  = FFI.uv_timer_cb(&@reactor.method(:_timer_callback))
+          end
+          
+          def concrete_alloc_item
+            @item_pool.pop || FFI.uv_timer_alloc
+          end
+          
+          def concrete_release_item(item)
+            @item_pool << item
+          end
+          
+          def concrete_start_item(ident, item, timeout)
+            timeout_ms = (timeout * 1000).ceil
+            
+            # TODO: need not init existing timer item?
+            Util.error_check "creating the timer item",
+              FFI.uv_timer_init(@reactor.ptr, item)
+            
+            Util.error_check "starting the timer item",
+              FFI.uv_timer_start(item, @callback, timeout_ms, timeout_ms)
+          end
+          
+          def concrete_stop_item(ident, item)
+            Util.error_check "stopping the timer item",
+              FFI.uv_timer_stop(item)
           end
         end
         

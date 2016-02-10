@@ -21,12 +21,7 @@ module Bran
         @write_polls.bond_with @read_polls
         
         @signal_polls = Collections::Signal.new(self)
-        
-        @available_signals   = []
-        @running_signals     = {}
-        
-        @available_timers    = []
-        @running_timers      = {}
+        @timer_polls  = Collections::Timer.new(self)
         
         # TODO: add more Ruby-compatible signal handlers by default?
         push_signalable :INT, Proc.new { @abort_signal = :INT; stop! }
@@ -41,9 +36,8 @@ module Bran
         end
         @ptr = @finalizer = nil
         
-        @read_polls        = @write_polls     = \
-        @available_signals = @running_signals = \
-        @available_timers  = @running_timers  = nil
+        @read_polls   = @write_polls = \
+        @signal_polls = @timer_polls = nil
         
         self
       end
@@ -113,6 +107,12 @@ module Bran
         @signal_polls.push(signo, handler, persistent)
       end
       
+      # Push the given handler for the given timer id, adding if necessary.
+      # If persistent is false, the handler will be popped after one trigger.
+      def push_timable(ident, timeout, handler, persistent = true)
+        @timer_polls.push(ident, handler, persistent, timeout)
+      end
+      
       # Remove the next readable handler for the given fd.
       def pop_readable(fd)
         @read_polls.pop(Integer(fd))
@@ -123,82 +123,28 @@ module Bran
         @write_polls.pop(Integer(fd))
       end
       
-      # Remove the next writable handler for the given fd.
+      # Remove the next signal handler for the given signal.
       def pop_signalable(signo)
         signo = Signal.list.fetch(signo.to_s) unless signo.is_a?(Integer)
         
         @signal_polls.pop(signo)
       end
       
-      # Start a timer to run the given block after the given timeout.
-      # If a repeat_interval is given, after the first run, the block will be
-      # run repeatedly at that interval. If a repeat_interval is not given,
-      # or given as nil or 0, timer_cancel is called automatically at first run.
-      # Both timeout and repeat_interval should be given in seconds.
-      def timer_start(timeout, repeat_interval = nil, &block)
-        ptr = ptr()
-        
-        timeout = (timeout * 1000).ceil
-        
-        repeat = false
-        if repeat_interval and repeat_interval > 0
-          repeat_interval = (repeat_interval * 1000).ceil
-          repeat          = true
-        else
-          repeat_interval = 0
-        end
-        
-        raise ArgumentError, "callback block required" unless block
-        
-        timer = @available_timers.pop || FFI.uv_timer_alloc
-        id    = timer.address
-        
-        callback = FFI.uv_timer_cb do |_|
-          rescue_abort do
-            block.call self, id
-            
-            timer_cancel(id) unless repeat
-          end
-        end
-        
-        @running_timers[id] = [timer, callback]
-        
-        # TODO: investigate if need not init existing available_timers
-        Util.error_check "creating the timer item",
-          FFI.uv_timer_init(ptr, timer)
-        
-        Util.error_check "starting the timer item",
-          FFI.uv_timer_start(timer, callback, timeout, repeat_interval)
-        
-        id
-      end
-      
-      # Stop handling the given timer.
-      def timer_cancel(id)
-        id = Integer(id)
-        
-        timer, callback = @running_timers.delete(id)
-        
-        return unless timer
-        
-        Util.error_check "stopping the timer item",
-          FFI.uv_timer_stop(timer)
-        
-        @available_timers << timer
-        
-        nil
+      # Remove the next timer handler for the given timer.
+      def pop_timable(ident)
+        @timer_polls.pop(ident)
       end
       
       # Start a timer to run the given block after the given timeout.
       # The timer will be run just once, starting now.
       def timer_oneshot(time, &block)
-        timer_start(time, &block)
+        push_timable(block.object_id, time, block, false)
       end
       
       # Start a timer to wake the given fiber after the given timeout.
       # The timer will be run just once, starting now.
       def timer_oneshot_wake(time, fiber)
-        timer_start(time) { fiber.resume } # TODO: optimize this case
+        timer_oneshot(time) { fiber.resume } # TODO: optimize this case, but be careful of ident uniqueness
       end
       
     private
@@ -234,6 +180,13 @@ module Bran
       def _signal_callback(handle, signo)
         rescue_abort do
           @signal_polls.invoke_by_ident(signo)
+        end
+      end
+      
+      # Callback method called directly from FFI when a timer has occurred.
+      def _timer_callback(handle)
+        rescue_abort do
+          @timer_polls.invoke_by_addr(handle.address)
         end
       end
       

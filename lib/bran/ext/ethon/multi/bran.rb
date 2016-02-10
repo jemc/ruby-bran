@@ -115,7 +115,7 @@ module Ethon
       end
       
       def timer_cancel
-        @fm.loop.timer_cancel @timeout_timer if @timeout_timer
+        @fm.loop.pop_timable @timeout_timer if @timeout_timer
       end
       
       def socket_action!(fd, flags)

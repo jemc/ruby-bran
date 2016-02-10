@@ -80,7 +80,7 @@ Module.new do
       begin
         r_ary.each { |io| fm.loop.pop_readable(Integer(io)) } if r_ary
         w_ary.each { |io| fm.loop.pop_writable(Integer(io)) } if w_ary
-        fm.loop.timer_cancel(timer) if timer
+        fm.loop.pop_timable(timer) if timer
       ensure
         fiber.resume(item)
       end
